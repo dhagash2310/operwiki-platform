@@ -171,4 +171,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*Built by [Your Name](https://github.com/YOUR-USERNAME) — demonstrating full-stack development with Azure AI, enterprise architecture patterns, and modern DevOps.*
+*Built by Dhagash Shelat — demonstrating full-stack development with Azure AI, enterprise architecture patterns, and modern DevOps.*
