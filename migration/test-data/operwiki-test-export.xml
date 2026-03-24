@@ -1,0 +1,321 @@
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/">
+  <siteinfo>
+    <sitename>OperWiki</sitename>
+    <base>http://operwiki.internal/wiki/Main_Page</base>
+  </siteinfo>
+
+  <page>
+    <title>Citrix</title>
+    <revision>
+      <text xml:space="preserve">
+== Overview ==
+Citrix XenApp and XenDesktop environment providing virtual desktops and published applications to end users.
+
+== Citrix Servers ==
+Current production Citrix servers:
+* CTX-01 - Delivery Controller (Primary)
+* CTX-02 - Delivery Controller (Secondary)
+* CTX-03 - StoreFront Server
+* CTX-04 - NetScaler Gateway
+* CTX-W01 - Worker / VDA Node 1
+* CTX-W02 - Worker / VDA Node 2
+* CTX-W03 - Worker / VDA Node 3
+
+== Licensing ==
+Citrix license server: LIC-01.internal
+License type: XenApp Platinum
+Total licenses: 500 concurrent
+
+== Starting and Stopping Services ==
+To restart the Citrix Broker Service on a Delivery Controller:
+ net stop CitrixBrokerService
+ net start CitrixBrokerService
+
+To restart StoreFront:
+ iisreset /restart
+
+== Common Issues ==
+
+=== Users Cannot Log In ===
+# Check Delivery Controller service status on CTX-01 and CTX-02
+# Check StoreFront availability at https://storefront.internal
+# Review event logs on the affected Delivery Controller
+# Verify NetScaler Gateway is reachable
+
+=== Sessions Stuck or Disconnected ===
+Use Citrix Studio or run the following PowerShell on CTX-01:
+ Get-BrokerSession | Where-Object {$_.SessionState -eq "Disconnected"} | Stop-BrokerSession
+
+=== High CPU on Worker Nodes ===
+# RDP to the affected VDA node
+# Use Task Manager to identify the process
+# Check Citrix Director for active session count
+# Escalate to Citrix admin if load exceeds 85%
+
+== Monitoring ==
+Citrix environment is monitored via:
+* Citrix Director: https://ctx-01.internal/Director
+* SCOM alerts configured for broker service failures
+* Nagios checks on port 80/443 for StoreFront
+
+== Contacts ==
+* Citrix Admin: citrix-team@company.com
+* Vendor Support: 1-800-CITRIX (contract #CTX-2023-4451)
+      </text>
+    </revision>
+  </page>
+
+  <page>
+    <title>Server Infrastructure</title>
+    <revision>
+      <text xml:space="preserve">
+== Overview ==
+This page documents all physical and virtual servers in the production environment.
+
+== Physical Servers ==
+
+=== Data Center A ===
+{| class="wikitable"
+! Hostname !! Role !! OS !! CPU !! RAM !! Location
+|-
+| SRV-DC01 || Domain Controller (Primary) || Windows Server 2019 || 8 vCPU || 32GB || Rack A1
+|-
+| SRV-DC02 || Domain Controller (Secondary) || Windows Server 2019 || 8 vCPU || 32GB || Rack A1
+|-
+| SRV-FILE01 || File Server || Windows Server 2022 || 16 vCPU || 64GB || Rack A2
+|-
+| SRV-SQL01 || SQL Server (Primary) || Windows Server 2019 + SQL 2019 || 32 vCPU || 256GB || Rack B1
+|-
+| SRV-SQL02 || SQL Server (Secondary/Mirror) || Windows Server 2019 + SQL 2019 || 32 vCPU || 256GB || Rack B2
+|}
+
+=== Data Center B (DR) ===
+* SRV-DC03 - Domain Controller (DR)
+* SRV-FILE02 - File Server (DR, DFS Replica)
+* SRV-SQL03 - SQL Server (DR, Log Shipping target)
+
+== Virtual Machines (VMware) ==
+vCenter: vcenter.internal
+Cluster: PROD-CLUSTER-01
+
+Key VMs:
+* APP-WEB01 / APP-WEB02 - Web application servers (IIS)
+* APP-API01 / APP-API02 - API servers
+* MON-01 - Monitoring server (Nagios/SCOM)
+* BACKUP-01 - Veeam backup server
+
+== Server Patching ==
+Patching schedule:
+* Production servers: 3rd Sunday of each month, 02:00-06:00
+* DR servers: Week after production
+* Emergency patches: Change request required, CAB approval
+
+Patching procedure:
+# Create change request in ServiceNow
+# Take VM snapshot (virtual servers)
+# Apply patches via WSUS or manual
+# Verify services are running post-patch
+# Remove snapshot after 72 hours if stable
+
+== Backup Policy ==
+* Veeam Backup &amp; Replication manages all VM backups
+* Retention: 14 daily, 4 weekly, 12 monthly
+* Backup window: 22:00-05:00 daily
+* Backup target: SAN storage + offsite tape (monthly)
+* RTO: 4 hours | RPO: 24 hours
+
+== Hardware Refresh ==
+Next scheduled hardware refresh: Q2 2026
+      </text>
+    </revision>
+  </page>
+
+  <page>
+    <title>Monitoring and Alerting</title>
+    <revision>
+      <text xml:space="preserve">
+== Overview ==
+The monitoring stack consists of Nagios Core for infrastructure checks and SCOM for Windows-specific monitoring.
+
+== Monitoring Tools ==
+* '''Nagios''': https://mon-01.internal/nagios — Linux/network/service checks
+* '''SCOM 2019''': https://scom.internal — Windows server monitoring
+* '''Grafana''': https://grafana.internal — Performance dashboards
+* '''PagerDuty''': https://company.pagerduty.com — Alert routing and on-call
+
+== Nagios Checks ==
+Critical checks currently configured:
+* Ping / host availability — all servers
+* Disk usage threshold: Warning 80%, Critical 90%
+* CPU threshold: Warning 85%, Critical 95%
+* Windows services: key services per server role
+* SQL Server availability and replication lag
+* Website availability (HTTP 200 checks)
+
+== Alert Severity Levels ==
+{| class="wikitable"
+! Level !! Response Time !! Examples
+|-
+| P1 - Critical || Immediate (24/7) || Server down, database unavailable, widespread outage
+|-
+| P2 - High || 30 minutes (business hours), 1 hour (out of hours) || Single service failure, performance degradation
+|-
+| P3 - Medium || 4 hours (business hours) || Non-critical service warning, disk space warning
+|-
+| P4 - Low || Next business day || Informational alerts, capacity planning
+|}
+
+== Escalation Procedure ==
+# Alert fires in PagerDuty → On-call engineer notified
+# On-call acknowledges within SLA or escalates to secondary
+# If unresolved after 30 minutes → escalate to team lead
+# P1 incidents → also notify: IT Manager, relevant service owner
+
+== On-Call Rota ==
+On-call schedule managed in PagerDuty.
+Primary on-call rotation: weekly, Monday 09:00 handover
+Secondary escalation: senior engineers
+
+== Adding a New Check ==
+# SSH to mon-01.internal
+# Edit /etc/nagios/conf.d/hosts.cfg or relevant service file
+# Run: nagios -v /etc/nagios/nagios.cfg
+# Reload: systemctl reload nagios
+# Verify check appears in web UI
+
+== Known Issues ==
+* SCOM agent on SRV-FILE01 reports false positives on disk — suppressed until storage team resolves (ticket #INC-4421)
+* Grafana dashboard for SQL replication is outdated — rebuild planned for Q1 2026
+      </text>
+    </revision>
+  </page>
+
+  <page>
+    <title>Incident Response</title>
+    <revision>
+      <text xml:space="preserve">
+== Overview ==
+This document defines the standard incident response procedure for all IT infrastructure incidents.
+
+== Incident Classification ==
+
+=== P1 - Critical ===
+* Complete service outage affecting all users
+* Data loss or data breach
+* Security incident
+
+=== P2 - High ===
+* Partial service outage (significant user impact)
+* Performance degradation affecting business operations
+
+=== P3 - Medium ===
+* Single user or small group impacted
+* Non-critical system failure
+
+== Response Steps ==
+
+=== P1 Incident ===
+# '''Declare''' the incident — create ticket in ServiceNow, set priority P1
+# '''Notify''' — page on-call via PagerDuty, notify IT Manager immediately
+# '''Assemble''' bridge call — Teams/Zoom bridge: https://company.zoom.us/j/incident
+# '''Investigate''' — assign investigation lead, document findings in ticket
+# '''Communicate''' — send status update to stakeholders every 30 minutes
+# '''Resolve''' — apply fix, verify services restored
+# '''Post-incident''' — PIR (Post Incident Review) within 48 hours
+
+=== P2 Incident ===
+# Create ServiceNow ticket
+# Notify team lead
+# Investigate and resolve within SLA
+# Update ticket with resolution notes
+
+== Communication Templates ==
+
+=== Initial Notification ===
+ Subject: [P1 INCIDENT] &lt;Service&gt; - &lt;Brief Description&gt;
+ 
+ We are currently investigating an issue with &lt;service&gt;.
+ Impact: &lt;who is affected&gt;
+ Started: &lt;time&gt;
+ Next update: 30 minutes
+
+=== Resolution Notice ===
+ Subject: [RESOLVED] [P1 INCIDENT] &lt;Service&gt; - &lt;Brief Description&gt;
+ 
+ The incident has been resolved as of &lt;time&gt;.
+ Root cause: &lt;brief description&gt;
+ Action taken: &lt;what was done&gt;
+ PIR scheduled: &lt;date&gt;
+
+== Post Incident Review (PIR) ==
+PIR template is in SharePoint: IT Team > Incidents > PIR Template.docx
+
+Required sections:
+* Timeline of events
+* Root cause analysis
+* Impact assessment
+* Actions to prevent recurrence
+* Owner and due dates for each action
+
+== Contacts ==
+* IT Manager: it-manager@company.com / ext 5001
+* Security Team: security@company.com (P1 security incidents only)
+* Network Team: network-ops@company.com
+      </text>
+    </revision>
+  </page>
+
+  <page>
+    <title>VPN and Remote Access</title>
+    <revision>
+      <text xml:space="preserve">
+== Overview ==
+Remote access to internal resources is provided via Cisco AnyConnect VPN and Citrix Gateway.
+
+== VPN Infrastructure ==
+* Primary VPN: Cisco ASA 5525-X (vpn.company.com)
+* Backup VPN: Cisco ASA 5515-X (vpn2.company.com)
+* Authentication: Active Directory + Duo MFA
+
+== Connecting via VPN ==
+# Download Cisco AnyConnect from the IT portal: https://itportal.internal/vpn
+# Install and launch AnyConnect
+# Enter server: vpn.company.com
+# Authenticate with your AD username and password
+# Approve the Duo MFA push notification
+# Connected — you can now access internal resources
+
+== VPN Groups ==
+{| class="wikitable"
+! Group !! Access Level !! Who Uses It
+|-
+| STAFF-VPN || Standard internal network access || All staff
+|-
+| ADMIN-VPN || Full network access including server subnet || IT staff only
+|-
+| VENDOR-VPN || Limited access to specific systems || Third-party vendors
+|}
+
+== Troubleshooting VPN ==
+
+=== Cannot Connect ===
+* Verify credentials are correct (test at https://owa.company.com)
+* Check Duo is working — try logging into https://duo.company.com
+* Try the backup VPN: vpn2.company.com
+* If all fail, contact helpdesk
+
+=== Slow VPN Performance ===
+* Use split tunnelling profile if available
+* Connect from a wired connection where possible
+* Check VPN gateway load at: https://mon-01.internal/nagios (VPN checks)
+
+== Citrix Remote Access ==
+For users who only need application access (not full VPN):
+* URL: https://storefront.internal or https://citrix.company.com (external)
+* No VPN client required
+* Uses same AD credentials + Duo MFA
+      </text>
+    </revision>
+  </page>
+
+</mediawiki>

@@ -1,0 +1,208 @@
+version: "3.9"
+
+# ============================================================
+#  OperWiki AI Platform — Local Development Stack
+#  Run: docker compose up -d
+#  Access: http://localhost:3000
+# ============================================================
+
+networks:
+  operwiki-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  redis_data:
+  minio_data:
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: operwiki-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: operwiki
+      POSTGRES_USER: operwiki
+      POSTGRES_PASSWORD: operwiki_dev_pw
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - operwiki-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U operwiki"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Qdrant Vector Database ─────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: operwiki-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    networks:
+      - operwiki-net
+
+
+  # ── Redis (queue + cache) ───────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: operwiki-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - operwiki-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── MinIO (blob/object storage, mimics Azure Blob) ─────────
+  minio:
+    image: minio/minio:latest
+    container_name: operwiki-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - operwiki-net
+
+  # ── Backend API (Node.js / Express) ────────────────────────
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile.dev
+    container_name: operwiki-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://operwiki:operwiki_dev_pw@postgres:5432/operwiki
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      # Azure OpenAI — override with real values via .env.local
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-https://placeholder.openai.azure.com}
+      AZURE_OPENAI_KEY: ${AZURE_OPENAI_KEY:-placeholder}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-text-embedding-ada-002}
+      # Auth (local dev uses simple JWT, prod uses Azure AD)
+      JWT_SECRET: local_dev_secret_replace_in_prod
+      AUTH_MODE: local   # 'local' | 'azuread'
+    volumes:
+      - ../../backend/src:/app/src
+      - ../../backend/package.json:/app/package.json
+    ports:
+      - "4000:4000"
+    networks:
+      - operwiki-net
+
+  # ── Frontend (Next.js) ─────────────────────────────────────
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile.dev
+    container_name: operwiki-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api
+      NEXT_PUBLIC_APP_NAME: OperWiki AI
+      NEXT_PUBLIC_AUTH_MODE: local
+    volumes:
+      - ../../frontend/src:/app/src
+      - ../../frontend/public:/app/public
+    ports:
+      - "3000:3000"
+    networks:
+      - operwiki-net
+
+  # ── Background Worker (BullMQ) ─────────────────────────────
+  worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile.dev
+    container_name: operwiki-worker
+    restart: unless-stopped
+    command: ["node", "src/worker/index.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://operwiki:operwiki_dev_pw@postgres:5432/operwiki
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-https://placeholder.openai.azure.com}
+      AZURE_OPENAI_KEY: ${AZURE_OPENAI_KEY:-placeholder}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-text-embedding-ada-002}
+    volumes:
+      - ../../backend/src:/app/src
+    networks:
+      - operwiki-net
+
+  # ── Nginx Reverse Proxy ────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: operwiki-nginx
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    networks:
+      - operwiki-net
+
+  # ── pgAdmin (DB GUI) ───────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: operwiki-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@operwiki.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - operwiki-net
+    profiles:
+      - tools

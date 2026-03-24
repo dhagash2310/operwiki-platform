@@ -1,0 +1,69 @@
+# ── Environment & Secrets ─────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.production
+infra/docker/.env
+
+# ── Node.js ───────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ── Next.js ───────────────────────────────────────────────
+.next/
+out/
+build/
+.vercel
+
+# ── Terraform ─────────────────────────────────────────────
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+override.tf
+override.tf.json
+
+# ── Docker ────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── IDE ───────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Logs ──────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Test & Coverage ───────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+
+# ── Build artifacts ───────────────────────────────────────
+dist/
+*.tsbuildinfo
+
+# ── Misc ──────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
