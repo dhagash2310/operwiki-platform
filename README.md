@@ -74,7 +74,7 @@ OperWiki AI solves a real problem in IT operations: documentation that goes stal
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/operwiki-platform.git
+git clone https://github.com/dhagash2310/operwiki-platform.git
 cd operwiki-platform
 cp .env.example infra/docker/.env
 ```
