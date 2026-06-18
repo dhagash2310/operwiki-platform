@@ -40,6 +40,14 @@ function Message({ msg }) {
           )}
         </div>
 
+        {/* Low-confidence banner */}
+        {!isUser && msg.overallConfidence !== null && msg.overallConfidence < 0.70 && msg.sources?.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/5 border border-amber-500/20 text-[11px] font-mono text-amber-500/70">
+            <span className="text-amber-400">⚠</span>
+            Low confidence ({Math.round(msg.overallConfidence * 100)}%) — answer may not fully match your docs.
+          </div>
+        )}
+
         {/* Sources */}
         {msg.sources?.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pl-1">
@@ -49,6 +57,9 @@ function Message({ msg }) {
                 className="flex items-center gap-1 text-[11px] font-mono text-amber-500/70 hover:text-amber-400 bg-amber-500/5 border border-amber-500/15 hover:border-amber-500/30 px-2 py-0.5 rounded-full transition-colors">
                 <ExternalLink size={9} />
                 {s.title?.length > 25 ? s.title.slice(0, 25) + '…' : s.title}
+                {s.score != null && (
+                  <span className="ml-1 text-[10px] text-zinc-600">{Math.round(s.score * 100)}%</span>
+                )}
               </Link>
             ))}
           </div>
@@ -83,7 +94,12 @@ export default function AIChat() {
         body: JSON.stringify({ message: msg, history: newMsgs.slice(-6) }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.answer, sources: data.sources || [] }]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.answer,
+        sources: data.sources || [],
+        overallConfidence: data.overallConfidence ?? null,
+      }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: '⚠ Failed to get a response. Check that the backend is running.', sources: [] }]);
     } finally { setLoading(false); inputRef.current?.focus(); }

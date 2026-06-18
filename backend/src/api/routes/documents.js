@@ -112,7 +112,7 @@ documentsRouter.post('/:id/publish', requireRole('reviewer'), async (req, res, n
     // Re-index
     if (process.env.AZURE_OPENAI_KEY && process.env.AZURE_OPENAI_KEY !== 'placeholder') {
       const { indexDocument } = await import('../../services/ai/aiService.js');
-      indexDocument({ id: doc.id, title: doc.title, content_md: doc.content_md, tags: doc.tags || [] })
+      indexDocument({ id: doc.id, title: doc.title, content_md: doc.content_md, tags: doc.tags || [], categoryId: doc.category_id || null })
         .catch(e => logger.warn(`Index failed: ${e.message}`));
     }
 

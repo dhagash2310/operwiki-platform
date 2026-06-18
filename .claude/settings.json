@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:11434)",
+      "Bash(lsof -nP -iTCP:11434)",
+      "Bash(docker run *)",
+      "Bash(git add *)"
+    ]
+  }
+}
